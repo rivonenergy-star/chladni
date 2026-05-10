@@ -22,15 +22,16 @@ const STAGES=[
 
 const cv=document.getElementById('c');
 const ctx=cv.getContext('2d');
-const PI=Math.PI,MIN=0.001,NUM=4000,V=0.008;
+const PI=Math.PI,MIN=0.0005,NUM=4000,V=0.004;
 const dpr=Math.min(devicePixelRatio||1,2);
 let W,H;
 
-// current interpolated values
 let cm=1,cn=1,ca=-2,cb=2;
-// target values
 let tm=1,tn=1,ta=-2,tb=2;
-const LERP=0.012;
+const LERP=0.006;
+
+// mouse
+let mx=0.5,my=0.5,mActive=false,mRadius=0.12,mStrength=0.006;
 
 function resize(){
   W=window.innerWidth;H=window.innerHeight;
@@ -52,7 +53,6 @@ function init(){
 function rand(){return Math.random()*2-1;}
 
 function tick(){
-  // lerp current toward target
   cm+=(tm-cm)*LERP;
   cn+=(tn-cn)*LERP;
   ca+=(ta-ca)*LERP;
@@ -60,22 +60,50 @@ function tick(){
 
   ctx.fillStyle='#1e1e1e';
   ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.fillStyle='rgba(255,255,255,0.88)';
 
   for(let i=0;i<NUM;i++){
     let x=xs[i],y=ys[i];
+
     const eq=ca*Math.sin(PI*cn*x)*Math.sin(PI*cm*y)
              +cb*Math.sin(PI*cm*x)*Math.sin(PI*cn*y);
     let amp=V*Math.abs(eq);
     if(amp<MIN)amp=MIN;
     x+=rand()*amp;
     y+=rand()*amp;
+
+    // mouse repulsion
+    if(mActive){
+      const dx=x-mx,dy=y-my;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<mRadius&&dist>0.0001){
+        const force=mStrength*(1-dist/mRadius);
+        x+=dx/dist*force;
+        y+=dy/dist*force;
+      }
+    }
+
     if(x<0)x=-x; if(x>1)x=2-x;
     if(y<0)y=-y; if(y>1)y=2-y;
     xs[i]=x<0?0:x>1?1:x;
     ys[i]=y<0?0:y>1?1:y;
     ctx.fillRect(x*W-0.8,y*H-0.8,1.6,1.6);
   }
+
+  // subtle mouse glow ring
+  if(mActive){
+    const gx=mx*W,gy=my*H,gr=mRadius*W;
+    ctx.beginPath();
+    ctx.arc(gx,gy,gr,0,PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.04)';
+    ctx.lineWidth=1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(gx,gy,3,0,PI*2);
+    ctx.fillStyle='rgba(255,255,255,0.25)';
+    ctx.fill();
+  }
+
   requestAnimationFrame(tick);
 }
 
@@ -85,6 +113,13 @@ window.addEventListener('message',function(e){
     tm=s.m;tn=s.n;ta=s.a;tb=s.b;
   }
 });
+
+window.addEventListener('mousemove',function(e){
+  mx=e.clientX/W;
+  my=e.clientY/H;
+  mActive=true;
+});
+window.addEventListener('mouseleave',function(){mActive=false;});
 
 window.addEventListener('resize',function(){
   ctx.setTransform(1,0,0,1,0,0);
