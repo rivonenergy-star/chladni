@@ -5,79 +5,82 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chladni</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; }
-    #c { display: block; }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;overflow:hidden;background:#1e1e1e}
+    canvas{display:block}
   </style>
 </head>
 <body>
-<div id="c"></div>
-<script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+<canvas id="c"></canvas>
 <script>
-  const STAGES = [
-    { m: 1, n: 1, a: -2, b:  2 },
-    { m: 3, n: 2, a: -2, b: -2 },
-    { m: 3, n: 5, a: -2, b: -2 },
-    { m: 8, n: 6, a:  2, b: -2 },
-  ];
+const STAGES=[
+  {m:1,n:1,a:-2,b:2},
+  {m:3,n:2,a:-2,b:-2},
+  {m:3,n:5,a:-2,b:-2},
+  {m:8,n:6,a:2,b:-2},
+];
 
-  let P = { ...STAGES[0], v: 0.02, num: 10000 };
+const cv=document.getElementById('c');
+const ctx=cv.getContext('2d');
+const PI=Math.PI,MIN=0.002,NUM=4000,V=0.018;
+const dpr=Math.min(devicePixelRatio||1,2);
+let W,H,m=1,n=1,a=-2,b=2;
 
-  function applyStage(idx) {
-    const s = STAGES[Math.min(Math.max(idx, 0), STAGES.length - 1)];
-    P.m = s.m; P.n = s.n; P.a = s.a; P.b = s.b;
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=W*dpr;cv.height=H*dpr;
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.scale(dpr,dpr);
+}
+
+const xs=new Float32Array(NUM);
+const ys=new Float32Array(NUM);
+
+function init(){
+  for(let i=0;i<NUM;i++){
+    xs[i]=Math.random()*0.9+0.05;
+    ys[i]=Math.random()*0.9+0.05;
   }
+}
 
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'chladni-stage') applyStage(e.data.stage);
-  });
+function rand(){return Math.random()*2-1;}
 
-  new p5(function(p) {
-    const PI = Math.PI, MIN = 0.002;
-    let pts = [], W, H;
+function tick(){
+  ctx.fillStyle='#1e1e1e';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  for(let i=0;i<NUM;i++){
+    let x=xs[i],y=ys[i];
+    const eq=a*Math.sin(PI*n*x)*Math.sin(PI*m*y)
+             +b*Math.sin(PI*m*x)*Math.sin(PI*n*y);
+    let amp=V*Math.abs(eq);
+    if(amp<MIN)amp=MIN;
+    x+=rand()*amp; y+=rand()*amp;
+    if(x<0)x=-x; if(x>1)x=2-x;
+    if(y<0)y=-y; if(y>1)y=2-y;
+    xs[i]=x<0?0:x>1?1:x;
+    ys[i]=y<0?0:y>1?1:y;
+    ctx.fillRect(x*W-0.8,y*H-0.8,1.6,1.6);
+  }
+  requestAnimationFrame(tick);
+}
 
-    function chladni(x, y) {
-      return P.a * Math.sin(PI*P.n*x) * Math.sin(PI*P.m*y)
-           + P.b * Math.sin(PI*P.m*x) * Math.sin(PI*P.n*y);
-    }
+window.addEventListener('message',function(e){
+  if(e.data&&e.data.type==='chladni-stage'){
+    const s=STAGES[Math.min(Math.max(e.data.stage,0),3)];
+    m=s.m;n=s.n;a=s.a;b=s.b;
+    init();
+  }
+});
 
-    function Pt() {
-      this.x = p.random(0.05, 0.95);
-      this.y = p.random(0.05, 0.95);
-    }
-    Pt.prototype.move = function() {
-      const eq = chladni(this.x, this.y);
-      let amp = P.v * Math.abs(eq);
-      if (amp < MIN) amp = MIN;
-      this.x += p.random(-amp, amp);
-      this.y += p.random(-amp, amp);
-      if (this.x < 0) this.x = -this.x;
-      if (this.x > 1) this.x = 2 - this.x;
-      if (this.y < 0) this.y = -this.y;
-      if (this.y > 1) this.y = 2 - this.y;
-      this.x = p.constrain(this.x, 0, 1);
-      this.y = p.constrain(this.y, 0, 1);
-    };
-    Pt.prototype.show = function() { p.point(this.x * W, this.y * H); };
+window.addEventListener('resize',function(){
+  ctx.setTransform(1,0,0,1,0,0);
+  resize();
+});
 
-    p.setup = function() {
-      const cnv = p.createCanvas(window.innerWidth, window.innerHeight);
-      cnv.parent('c');
-      p.pixelDensity(Math.min(window.devicePixelRatio, 2));
-      W = p.width; H = p.height;
-      for (let i = 0; i < P.num; i++) pts.push(new Pt());
-    };
-    p.windowResized = function() {
-      p.resizeCanvas(window.innerWidth, window.innerHeight);
-      W = p.width; H = p.height;
-    };
-    p.draw = function() {
-      p.background(30);
-      p.stroke(255);
-      p.strokeWeight(1.2);
-      for (let i = 0; i < pts.length; i++) { pts[i].move(); pts[i].show(); }
-    };
-  }, 'c');
+resize();
+init();
+tick();
 </script>
 </body>
 </html>
